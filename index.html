@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Make 24</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0f0f1a;
+      color: #fff;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: #ff6b6b;
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      color: #888;
+      font-size: 1rem;
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+
+    .cards {
+      display: flex;
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .card {
+      background: #1a1a2e;
+      border: 3px solid #ff6b6b;
+      border-radius: 18px;
+      width: 130px;
+      height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 5.5rem;
+      font-weight: 900;
+      color: #ff6b6b;
+      box-shadow: 0 0 30px rgba(255, 107, 107, 0.2);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      user-select: none;
+    }
+
+    .card.pop {
+      transform: scale(1.1);
+      box-shadow: 0 0 50px rgba(255, 107, 107, 0.5);
+    }
+
+    .buttons {
+      display: flex;
+      gap: 1.2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    button {
+      padding: 0.85rem 2.2rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+
+    button:hover { transform: scale(1.06); }
+    button:active { transform: scale(0.97); }
+
+    #btn-refresh {
+      background: #ff6b6b;
+      color: #fff;
+    }
+
+    #btn-reveal {
+      background: transparent;
+      color: #4ecdc4;
+      border: 2.5px solid #4ecdc4;
+    }
+
+    .solution-box {
+      margin-top: 2.5rem;
+      min-height: 3rem;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #4ecdc4;
+      text-align: center;
+      letter-spacing: 0.02em;
+      transition: opacity 0.3s;
+    }
+
+    .solution-box.none {
+      color: #ff6b6b;
+      font-size: 1.1rem;
+    }
+
+    @media (max-width: 560px) {
+      .card { width: 80px; height: 100px; font-size: 3.5rem; border-radius: 12px; }
+      .cards { gap: 0.8rem; }
+      h1 { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Make 24</h1>
+  <p class="subtitle">Combine the four numbers using  +  −  ×  ÷  (and brackets) to reach <strong>24</strong></p>
+
+  <div class="cards">
+    <div class="card" id="c0"></div>
+    <div class="card" id="c1"></div>
+    <div class="card" id="c2"></div>
+    <div class="card" id="c3"></div>
+  </div>
+
+  <div class="buttons">
+    <button id="btn-refresh" onclick="newGame()">&#x21BB; Refresh</button>
+    <button id="btn-reveal" onclick="reveal()">&#x1F4A1; Reveal</button>
+  </div>
+
+  <div class="solution-box" id="solution"></div>
+
+  <script>
+    // ─── Factorial ───────────────────────────────────────────────────────────────
+    function fact(n) {
+      if (!Number.isInteger(n) || n < 0 || n > 6) return null;
+      return [1, 1, 2, 6, 24, 120, 720][n];
+    }
+
+    // ─── Core solver ─────────────────────────────────────────────────────────────
+    // Each token: { v: number, e: string }
+    function solve(tokens) {
+      if (tokens.length === 1) {
+        return Math.abs(tokens[0].v - 24) < 1e-9 ? tokens[0].e : null;
+      }
+      for (let i = 0; i < tokens.length; i++) {
+        for (let j = 0; j < tokens.length; j++) {
+          if (i === j) continue;
+          const rest = tokens.filter((_, k) => k !== i && k !== j);
+          const a = tokens[i], b = tokens[j];
+          const candidates = [
+            { v: a.v + b.v, e: `(${a.e} + ${b.e})` },
+            { v: a.v - b.v, e: `(${a.e} − ${b.e})` },
+            { v: a.v * b.v, e: `(${a.e} × ${b.e})` },
+          ];
+          if (Math.abs(b.v) > 1e-9) {
+            candidates.push({ v: a.v / b.v, e: `(${a.e} ÷ ${b.e})` });
+          }
+          for (const c of candidates) {
+            const r = solve([...rest, c]);
+            if (r !== null) return r;
+          }
+        }
+      }
+      return null;
+    }
+
+    function findSolution(nums) {
+      // For each number, optionally apply factorial (e.g. 3→6, 4→24)
+      const opts = nums.map(n => {
+        const base = [{ v: n, e: String(n) }];
+        const f = fact(n);
+        if (f !== null && f !== n) base.push({ v: f, e: `${n}!` });
+        return base;
+      });
+
+      const total = opts.reduce((acc, o) => acc * o.length, 1);
+      for (let mask = 0; mask < total; mask++) {
+        let m = mask;
+        const chosen = opts.map(o => { const pick = o[m % o.length]; m = Math.floor(m / o.length); return pick; });
+        const result = solve(chosen);
+        if (result !== null) return stripOuter(result);
+      }
+      return null;
+    }
+
+    function stripOuter(expr) {
+      while (expr.startsWith('(') && expr.endsWith(')')) {
+        let depth = 0;
+        let isOuter = true;
+        for (let i = 0; i < expr.length - 1; i++) {
+          if (expr[i] === '(') depth++;
+          else if (expr[i] === ')') depth--;
+          if (depth === 0) { isOuter = false; break; }
+        }
+        if (isOuter) expr = expr.slice(1, -1);
+        else break;
+      }
+      return expr;
+    }
+
+    // ─── Game logic ──────────────────────────────────────────────────────────────
+    let currentSolution = null;
+
+    function newGame() {
+      document.getElementById('solution').textContent = '';
+      document.getElementById('solution').className = 'solution-box';
+
+      let nums, sol;
+      let tries = 0;
+      do {
+        nums = Array.from({ length: 4 }, () => Math.floor(Math.random() * 9) + 1);
+        sol = findSolution(nums);
+        tries++;
+      } while (!sol && tries < 200);
+
+      currentSolution = sol;
+
+      nums.forEach((n, i) => {
+        const el = document.getElementById(`c${i}`);
+        el.textContent = n;
+        el.classList.remove('pop');
+        // Trigger reflow for animation replay
+        void el.offsetWidth;
+        el.classList.add('pop');
+        setTimeout(() => el.classList.remove('pop'), 300);
+      });
+    }
+
+    function reveal() {
+      const el = document.getElementById('solution');
+      if (currentSolution) {
+        el.className = 'solution-box';
+        el.textContent = currentSolution + ' = 24';
+      } else {
+        el.className = 'solution-box none';
+        el.textContent = 'No solution found for this combination.';
+      }
+    }
+
+    newGame();
+  </script>
+</body>
+</html>
